@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon Sentiment Analysis — Interactive Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #060606;
+    --card: #111111;
+    --card2: #1a1a1a;
+    --red: #FF2020;
+    --red2: #BB0000;
+    --green: #00E676;
+    --green2: #00A152;
+    --yellow: #FFD600;
+    --white: #FFFFFF;
+    --gray: #888888;
+    --lgray: #BBBBBB;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* TOP BAR */
+  .topbar {
+    background: var(--red2);
+    height: 6px;
+    width: 100%;
+  }
+
+  /* HEADER */
+  .header {
+    text-align: center;
+    padding: 28px 20px 16px;
+    position: relative;
+  }
+  .header h1 {
+    font-size: clamp(22px, 3.5vw, 40px);
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-shadow: 0 0 24px var(--red2), 0 0 4px var(--red);
+    margin-bottom: 8px;
+  }
+  .header h1 span { color: var(--red); }
+  .header .subtitle {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--gray);
+    letter-spacing: 1px;
+  }
+  .divider {
+    height: 3px;
+    background: linear-gradient(to right, transparent, var(--red), var(--red), transparent);
+    margin: 16px auto;
+    max-width: 800px;
+    border-radius: 2px;
+    opacity: 0.8;
+  }
+
+  /* KPI CARDS */
+  .kpi-row {
+    display: flex;
+    gap: 14px;
+    padding: 0 24px 28px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .kpi-card {
+    flex: 1; min-width: 140px; max-width: 200px;
+    background: var(--card2);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    cursor: default;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .kpi-card:hover { transform: translateY(-4px); }
+  .kpi-card.white  { border: 2px solid #fff; box-shadow: 0 0 16px rgba(255,255,255,0.08); }
+  .kpi-card.green  { border: 2px solid var(--green); box-shadow: 0 0 16px rgba(0,230,118,0.15); }
+  .kpi-card.yellow { border: 2px solid var(--yellow); box-shadow: 0 0 16px rgba(255,214,0,0.15); }
+  .kpi-card.red    { border: 2px solid var(--red); box-shadow: 0 0 16px rgba(255,32,32,0.15); }
+  .kpi-card.lgray  { border: 2px solid var(--lgray); box-shadow: 0 0 16px rgba(187,187,187,0.10); }
+  .kpi-strip { height: 10px; width: 100%; }
+  .kpi-card.white  .kpi-strip { background: #fff; }
+  .kpi-card.green  .kpi-strip { background: var(--green); }
+  .kpi-card.yellow .kpi-strip { background: var(--yellow); }
+  .kpi-card.red    .kpi-strip { background: var(--red); }
+  .kpi-card.lgray  .kpi-strip { background: var(--lgray); }
+  .kpi-body { padding: 14px 10px 12px; text-align: center; }
+  .kpi-val {
+    font-size: 26px; font-weight: 700; line-height: 1.1;
+    font-family: 'Space Mono', monospace;
+  }
+  .kpi-card.white  .kpi-val { color: #fff; }
+  .kpi-card.green  .kpi-val { color: var(--green); }
+  .kpi-card.yellow .kpi-val { color: var(--yellow); }
+  .kpi-card.red    .kpi-val { color: var(--red); }
+  .kpi-card.lgray  .kpi-val { color: var(--lgray); }
+  .kpi-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--white); margin-top: 4px; }
+  .kpi-sub   { font-size: 10px; color: var(--gray); margin-top: 2px; }
+
+  /* FILTER TABS */
+  .filter-section {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 24px 20px; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 11px; color: var(--gray); letter-spacing: 1px; font-family:'Space Mono',monospace; }
+  .tab-btn {
+    background: var(--card2); border: 1px solid #333;
+    color: var(--lgray); padding: 6px 16px;
+    border-radius: 20px; cursor: pointer;
+    font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 13px;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover { border-color: var(--red); color: var(--white); }
+  .tab-btn.active { background: var(--red2); border-color: var(--red); color: var(--white); }
+  .tab-btn.pos.active { background: #003320; border-color: var(--green); color: var(--green); }
+  .tab-btn.neu.active { background: #332800; border-color: var(--yellow); color: var(--yellow); }
+  .tab-btn.neg.active { background: #330000; border-color: var(--red); color: var(--red); }
+
+  /* CHART GRID */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
+    padding: 0 24px;
+  }
+  .col-3  { grid-column: span 3; }
+  .col-4  { grid-column: span 4; }
+  .col-5  { grid-column: span 5; }
+  .col-6  { grid-column: span 6; }
+  .col-7  { grid-column: span 7; }
+  .col-8  { grid-column: span 8; }
+  .col-12 { grid-column: span 12; }
+  @media(max-width:900px) {
+    .col-3,.col-4,.col-5,.col-6,.col-7,.col-8 { grid-column: span 12; }
+  }
+
+  .chart-card {
+    background: var(--card);
+    border-radius: 8px;
+    border: 1px solid #2a0000;
+    overflow: hidden;
+    margin-bottom: 0;
+  }
+  .chart-header {
+    background: var(--red2);
+    padding: 7px 14px;
+    font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    color: var(--white);
+  }
+  .chart-header.green  { background: #003820; border-bottom: 2px solid var(--green); }
+  .chart-header.dark   { background: #100000; border-bottom: 2px solid #330000; }
+  .chart-header.blue   { background: #001030; border-bottom: 2px solid #40C4FF; }
+  .chart-header.purple { background: #100020; border-bottom: 2px solid #CE93D8; }
+  .chart-body { padding: 14px; }
+
+  /* WORD CLOUD AREA */
+  .wordcloud-wrap {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    min-height: 160px; align-items: center;
+    padding: 10px 4px;
+  }
+  .wc-word {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: default;
+    transition: transform 0.15s, opacity 0.15s;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .wc-word:hover { transform: scale(1.2); opacity: 1 !important; }
+
+  /* HEATMAP */
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: 90px repeat(9, 1fr);
+    gap: 3px;
+    font-size: 10px;
+  }
+  .hm-cell {
+    padding: 8px 4px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: 700;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    transition: transform 0.15s;
+    cursor: default;
+  }
+  .hm-cell:hover { transform: scale(1.08); z-index: 5; position: relative; }
+  .hm-label { color: var(--lgray); display: flex; align-items: center; font-size: 10px; font-weight: 700; }
+  .hm-header { color: var(--gray); text-align: center; font-size: 9px; padding: 4px 2px; transform: rotate(-20deg); transform-origin: bottom; white-space: nowrap; height: 50px; display:flex; align-items:flex-end; justify-content:center; }
+
+  /* TOOLTIP */
+  .tooltip {
+    position: fixed; background: #1a1a1a; border: 1px solid var(--red);
+    padding: 8px 14px; border-radius: 6px; font-size: 12px;
+    pointer-events: none; z-index: 999;
+    color: var(--white); opacity: 0; transition: opacity 0.15s;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* INSIGHT CARDS */
+  .insight-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .insight-card {
+    flex: 1; min-width: 180px;
+    background: var(--card2); border-radius: 6px; padding: 12px 16px;
+    border-left: 3px solid var(--green);
+    font-size: 13px; line-height: 1.5;
+  }
+  .insight-card.warn { border-left-color: var(--red); }
+  .insight-card.info { border-left-color: #40C4FF; }
+  .insight-card strong { color: var(--green); display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: 1px; }
+  .insight-card.warn strong { color: var(--red); }
+  .insight-card.info strong { color: #40C4FF; }
+
+  /* BOTTOM BAR */
+  .bottombar {
+    background: var(--red2); margin-top: 32px;
+    padding: 7px; text-align: center;
+    font-size: 10px; color: var(--lgray);
+    font-family: 'Space Mono', monospace; letter-spacing: 0.5px;
+  }
+
+  /* SECTION SPACER */
+  .spacer { height: 20px; }
+</style>
+</head>
+<body>
+
+<div class="topbar"></div>
+
+<div class="header">
+  <h1>AMAZON REVIEWS — <span>SENTIMENT ANALYSIS</span></h1>
+  <div class="subtitle">Lexicon NLP &nbsp;●&nbsp; 28,830 Reviews &nbsp;●&nbsp; 9 Categories &nbsp;●&nbsp; Interactive Dashboard &nbsp;●&nbsp; May 2026</div>
+  <div class="divider"></div>
+</div>
+
+<!-- KPI ROW -->
+<div class="kpi-row">
+  <div class="kpi-card white">
+    <div class="kpi-strip"></div>
+    <div class="kpi-body">
+      <div class="kpi-val">28,830</div>
+      <div class="kpi-label">TOTAL REVIEWS</div>
+      <div class="kpi-sub">Analyzed</div>
+    </div>
+  </div>
+  <div class="kpi-card green">
+    <div class="kpi-strip"></div>
+    <div class="kpi-body">
+      <div class="kpi-val">14,447</div>
+      <div class="kpi-label">POSITIVE</div>
+      <div class="kpi-sub">50.1%</div>
+    </div>
+  </div>
+  <div class="kpi-card yellow">
+    <div class="kpi-strip"></div>
+    <div class="kpi-body">
+      <div class="kpi-val">11,675</div>
+      <div class="kpi-label">NEUTRAL</div>
+      <div class="kpi-sub">40.5%</div>
+    </div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-strip"></div>
+    <div class="kpi-body">
+      <div class="kpi-val">2,708</div>
+      <div class="kpi-label">NEGATIVE</div>
+      <div class="kpi-sub">9.4%</div>
+    </div>
+  </div>
+  <div class="kpi-card lgray">
+    <div class="kpi-strip"></div>
+    <div class="kpi-body">
+      <div class="kpi-val">1.19</div>
+      <div class="kpi-label">AVG SCORE</div>
+      <div class="kpi-sub">Polarity Index</div>
+    </div>
+  </div>
+</div>
+
+<!-- FILTER -->
+<div class="filter-section">
+  <span class="filter-label">FILTER BY SENTIMENT ▶</span>
+  <button class="tab-btn active" onclick="filterChart('All',this)">All</button>
+  <button class="tab-btn pos" onclick="filterChart('Positive',this)">✅ Positive</button>
+  <button class="tab-btn neu" onclick="filterChart('Neutral',this)">⚪ Neutral</button>
+  <button class="tab-btn neg" onclick="filterChart('Negative',this)">❌ Negative</button>
+</div>
+
+<!-- ROW 1 -->
+<div class="grid">
+  <div class="col-3 chart-card">
+    <div class="chart-header">Overall Sentiment</div>
+    <div class="chart-body" style="display:flex;align-items:center;justify-content:center;padding:20px 10px">
+      <canvas id="donutChart" width="200" height="200"></canvas>
+    </div>
+  </div>
+  <div class="col-6 chart-card">
+    <div class="chart-header dark">Sentiment by Product Category</div>
+    <div class="chart-body">
+      <canvas id="barChart" height="160"></canvas>
+    </div>
+  </div>
+  <div class="col-3 chart-card">
+    <div class="chart-header">Score Distribution</div>
+    <div class="chart-body">
+      <canvas id="histChart" height="220"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+<!-- ROW 2: Heatmap + Word Cloud -->
+<div class="grid">
+  <div class="col-6 chart-card">
+    <div class="chart-header blue">🔥 Heatmap — Sentiment Intensity by Category</div>
+    <div class="chart-body" style="overflow-x:auto">
+      <div class="heatmap-grid" id="heatmapGrid"></div>
+    </div>
+  </div>
+  <div class="col-6 chart-card">
+    <div class="chart-header green">☁️ Word Cloud — Positive Review Keywords</div>
+    <div class="chart-body">
+      <div class="wordcloud-wrap" id="wordCloud"></div>
+    </div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+<!-- ROW 3: Violin-style + Radar -->
+<div class="grid">
+  <div class="col-6 chart-card">
+    <div class="chart-header purple">🎻 Avg Score by Category (Violin-Style)</div>
+    <div class="chart-body">
+      <canvas id="violinChart" height="160"></canvas>
+    </div>
+  </div>
+  <div class="col-6 chart-card">
+    <div class="chart-header blue">📡 Category Radar — Positive vs Negative</div>
+    <div class="chart-body" style="display:flex;justify-content:center">
+      <canvas id="radarChart" width="300" height="280"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+<!-- ROW 4: Products -->
+<div class="grid">
+  <div class="col-6 chart-card">
+    <div class="chart-header green">🏆 Top 10 Highly Positive Products</div>
+    <div class="chart-body">
+      <canvas id="posBar" height="220"></canvas>
+    </div>
+  </div>
+  <div class="col-6 chart-card">
+    <div class="chart-header" style="background:#330000;border-bottom:2px solid var(--red)">⚠️ Top 10 Most Negative Products</div>
+    <div class="chart-body">
+      <canvas id="negBar" height="220"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+<!-- ROW 5: Stacked + Insights -->
+<div class="grid">
+  <div class="col-7 chart-card">
+    <div class="chart-header dark">Sentiment Breakdown — All Categories (Stacked)</div>
+    <div class="chart-body">
+      <canvas id="stackedBar" height="160"></canvas>
+    </div>
+  </div>
+  <div class="col-5 chart-card">
+    <div class="chart-header green">💡 Key Insights</div>
+    <div class="chart-body">
+      <div class="insight-row" style="flex-direction:column;gap:10px">
+        <div class="insight-card">
+          <strong>✅ BEST CATEGORY</strong>
+          OfficeProducts leads with avg score 1.470 — excellent customer satisfaction
+        </div>
+        <div class="insight-card warn">
+          <strong>⚠️ NEEDS ATTENTION</strong>
+          Health &amp; Personal Care scores -0.118 — only negative category overall
+        </div>
+        <div class="insight-card info">
+          <strong>📊 OVERALL HEALTH</strong>
+          50.1% Positive, 40.5% Neutral, only 9.4% Negative — strong sentiment profile
+        </div>
+        <div class="insight-card info">
+          <strong>🏆 SENTIMENT LEADERS</strong>
+          Computers &amp; Accessories and Electronics drive 70%+ of all reviews
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="bottombar">
+  CodeAlpha Data Analytics Internship &nbsp;●&nbsp; Task 4 : Sentiment Analysis &nbsp;●&nbsp;
+  Rejitha E &nbsp;●&nbsp; CA/DF1/85415 &nbsp;●&nbsp; May 2026
+</div>
+
+<script>
+// ── DATA ─────────────────────────────────────────
+const CATS = ['Computers&Accessories','Electronics','Home&Kitchen','OfficeProducts','MusicalInstruments','HomeImprovement','Car&Motorbike','Toys&Games','Health&PersonalCare'];
+const CAT_SHORT = ['Comp&Acc','Electronics','Home&Kit','OfficeProd','Musical','HomeImprv','Car&Moto','Toys&Games','Health'];
+
+const CAT_DATA = {
+  Positive: [4436,5641,4008,286,44,15,8,8,1],
+  Neutral:  [3266,4895,3221,186,43,28,8,11,17],
+  Negative: [749,1188,710,41,10,4,2,1,3]
+};
+const AVG_SCORES = {
+  'Computers&Accessories':1.332,'Electronics':1.02,'Home&Kitchen':1.268,
+  'OfficeProducts':1.47,'MusicalInstruments':0.65,'HomeImprovement':0.839,
+  'Car&Motorbike':0.474,'Toys&Games':1.047,'Health&PersonalCare':-0.118
+};
+const TOP_POS = [
+  ['HP 65W AC Laptops Charger...', 6.75],
+  ['Havells Ventil Air DSP Fan', 6.67],
+  ['IKEA Frother for Milk', 6.67],
+  ['Epson 003 65ml EcoTank...', 6.33],
+  ['Quantum RJ45 Ethernet Cable', 5.75],
+  ['Technotech HDMI 5M Cable', 5.64],
+  ['Butterfly Hero Mixer 500W', 5.37],
+  ['realme 10W Fast Micro-USB', 5.37],
+  ['Lapster USB 3.0 A to Micro B', 5.35],
+  ['Kodak 50in Bezel-Less TV', 5.34]
+];
+const TOP_NEG = [
+  ['Gizga Laptop Bag Sleeve', -10.0],
+  ['VW 32in HD Android Smart TV', -6.67],
+  ['PrettyKrafts Laundry Bag', -5.38],
+  ['pTron Volta Dual USB Charger', -5.0],
+  ['Glun Multipurpose Digital...', -5.0],
+  ['HP 805 Black Ink Cartridge', -5.0],
+  ['Ambrane BCL-15 Lightning Cab', -5.0],
+  ['Universal Sony Remote', -5.0],
+  ['Duracell Micro USB Cable', -5.0],
+  ['Storite USB 2.0 Mini 5pin Cab', -5.0]
+];
+const POS_WORDS = [
+  ['best',1111,22],['easy',1092,21],['money',1068,20],['value',927,19],
+  ['working',756,17],['charging',755,17],['worth',632,16],['phone',625,16],
+  ['fast',623,16],['sound',580,15],['overall',554,15],['watch',497,14],
+  ['battery',476,14],['excellent',389,13],['better',369,13],['camera',323,12],
+  ['budget',294,12],['perfect',289,12],['looks',283,11],['fine',416,14],
+  ['range',364,13],['amazon',281,11],['long',270,11],['months',260,10],['quality',250,13]
+];
+const NEG_WORDS = [
+  ['issue',250,20],['problem',230,19],['service',124,16],['cheap',108,15],
+  ['return',92,14],['screen',90,14],['installation',92,13],['support',85,12],
+  ['water',116,15],['battery',108,15],['charging',142,16],['cable',131,15]
+];
+
+const GREEN='#00E676', YELLOW='#FFD600', RED='#FF2020',
+      RED2='#BB0000', GRAY='#888', WHITE='#fff', BG='#060606', CARD='#111';
+
+Chart.defaults.color = '#888';
+Chart.defaults.font.family = 'Rajdhani';
+const chartOpts = {
+  responsive:true, maintainAspectRatio:true,
+  plugins:{ legend:{ labels:{ color:WHITE, font:{size:11,weight:'bold'} } } }
+};
+
+// ── DONUT ─────────────────────────────────────────
+const donutChart = new Chart(document.getElementById('donutChart'), {
+  type:'doughnut',
+  data:{
+    labels:['Positive','Neutral','Negative'],
+    datasets:[{ data:[14447,11675,2708], backgroundColor:[GREEN,YELLOW,RED],
+      borderColor:BG, borderWidth:4, hoverOffset:8 }]
+  },
+  options:{
+    ...chartOpts,
+    cutout:'62%',
+    plugins:{
+      legend:{ position:'bottom', labels:{ color:WHITE, font:{size:11,weight:'bold'}, padding:12 } },
+      tooltip:{ callbacks:{ label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} (${(ctx.parsed/28830*100).toFixed(1)}%)` } }
+    }
+  }
+});
+
+// ── BAR CHART ─────────────────────────────────────
+let barChart = new Chart(document.getElementById('barChart'), {
+  type:'bar',
+  data:{
+    labels:CAT_SHORT,
+    datasets:[
+      { label:'Positive', data:CAT_DATA.Positive, backgroundColor:GREEN+'CC', borderRadius:3 },
+      { label:'Neutral',  data:CAT_DATA.Neutral,  backgroundColor:YELLOW+'CC', borderRadius:3 },
+      { label:'Negative', data:CAT_DATA.Negative, backgroundColor:RED+'CC', borderRadius:3 }
+    ]
+  },
+  options:{
+    ...chartOpts,
+    scales:{
+      x:{ grid:{color:'#1C1C1C'}, ticks:{color:WHITE, font:{size:9}} },
+      y:{ grid:{color:'#1C1C1C'}, ticks:{color:GRAY} }
+    },
+    plugins:{
+      legend:{ labels:{ color:WHITE, font:{size:10} } },
+      tooltip:{ mode:'index', intersect:false }
+    }
+  }
+});
+
+// ── HISTOGRAM (fake with bar) ─────────────────────
+const histBins = [-1,-0.8,-0.6,-0.4,-0.2,0,0.2,0.4,0.6,0.8,1];
+// Approximate distribution data
+const posHist  = [0,0,0,0,20,0,200,1800,6000,4500,1900];
+const neuHist  = [0,0,0,0,500,4000,4000,2000,800,200,50];
+const negHist  = [50,200,500,800,600,400,100,30,10,5,0];
+new Chart(document.getElementById('histChart'), {
+  type:'bar',
+  data:{
+    labels:['-1.0','-0.8','-0.6','-0.4','-0.2','0','+0.2','+0.4','+0.6','+0.8','+1.0'],
+    datasets:[
+      { label:'Positive', data:posHist, backgroundColor:GREEN+'99', borderRadius:2 },
+      { label:'Neutral',  data:neuHist, backgroundColor:YELLOW+'99', borderRadius:2 },
+      { label:'Negative', data:negHist, backgroundColor:RED+'99', borderRadius:2 }
+    ]
+  },
+  options:{
+    ...chartOpts,
+    scales:{
+      x:{ stacked:true, grid:{color:'#1C1C1C'}, ticks:{color:GRAY,font:{size:8}} },
+      y:{ stacked:true, grid:{color:'#1C1C1C'}, ticks:{color:GRAY,font:{size:8}} }
+    },
+    plugins:{ legend:{ display:false } }
+  }
+});
+
+// ── HEATMAP ───────────────────────────────────────
+function buildHeatmap() {
+  const grid = document.getElementById('heatmapGrid');
+  const rows = ['Positive','Neutral','Negative'];
+  const colors = { Positive:GREEN, Neutral:YELLOW, Negative:RED };
+  const maxVal = Math.max(...Object.values(CAT_DATA).flat());
+
+  // Header row
+  grid.innerHTML = '';
+  const blank = document.createElement('div');
+  blank.className = 'hm-label'; blank.textContent = '';
+  grid.appendChild(blank);
+  CATS.forEach((c,i) => {
+    const h = document.createElement('div');
+    h.className = 'hm-header';
+    h.textContent = CAT_SHORT[i];
+    grid.appendChild(h);
+  });
+
+  rows.forEach(row => {
+    const lbl = document.createElement('div');
+    lbl.className = 'hm-label';
+    lbl.textContent = row;
+    lbl.style.color = colors[row];
+    grid.appendChild(lbl);
+    CATS.forEach((cat, ci) => {
+      const val = CAT_DATA[row][ci];
+      const intensity = val / maxVal;
+      const cell = document.createElement('div');
+      cell.className = 'hm-cell';
+      const baseColor = row === 'Positive' ? [0,230,118] : row === 'Neutral' ? [255,214,0] : [255,32,32];
+      const r = Math.round(baseColor[0] * intensity);
+      const g = Math.round(baseColor[1] * intensity);
+      const b = Math.round(baseColor[2] * intensity);
+      cell.style.background = `rgb(${r},${g},${b})`;
+      cell.style.color = intensity > 0.35 ? '#000' : '#888';
+      cell.textContent = val >= 1000 ? (val/1000).toFixed(1)+'k' : val;
+      cell.title = `${row} — ${cat}: ${val.toLocaleString()}`;
+      // Tooltip
+      cell.addEventListener('mouseenter', e => showTip(e, `${row} / ${cat}<br><b>${val.toLocaleString()}</b> reviews`));
+      cell.addEventListener('mouseleave', hideTip);
+      grid.appendChild(cell);
+    });
+  });
+}
+buildHeatmap();
+
+// ── WORD CLOUD ────────────────────────────────────
+function buildWordCloud() {
+  const wc = document.getElementById('wordCloud');
+  const greens = ['#00E676','#00C853','#69F0AE','#B9F6CA','#00BFA5','#64FFDA'];
+  POS_WORDS.forEach(([word, count, size]) => {
+    const span = document.createElement('span');
+    span.className = 'wc-word';
+    span.textContent = word;
+    span.style.fontSize = (size * 0.75 + 4) + 'px';
+    span.style.color = greens[Math.floor(Math.random() * greens.length)];
+    span.style.opacity = 0.5 + (size / 22) * 0.5;
+    span.style.background = 'rgba(0,230,118,0.05)';
+    span.title = `"${word}" — ${count.toLocaleString()} mentions`;
+    span.addEventListener('mouseenter', e => showTip(e, `<b>${word}</b><br>${count.toLocaleString()} mentions in positive reviews`));
+    span.addEventListener('mouseleave', hideTip);
+    wc.appendChild(span);
+  });
+  // Add negative words in red
+  NEG_WORDS.forEach(([word, count, size]) => {
+    const span = document.createElement('span');
+    span.className = 'wc-word';
+    span.textContent = word;
+    span.style.fontSize = (size * 0.65 + 3) + 'px';
+    span.style.color = RED;
+    span.style.opacity = 0.4 + (size / 20) * 0.4;
+    span.style.background = 'rgba(255,32,32,0.05)';
+    span.title = `"${word}" — ${count.toLocaleString()} mentions (negative)`;
+    span.addEventListener('mouseenter', e => showTip(e, `<b>${word}</b><br>${count.toLocaleString()} mentions in negative reviews`));
+    span.addEventListener('mouseleave', hideTip);
+    wc.appendChild(span);
+  });
+}
+buildWordCloud();
+
+// ── VIOLIN-STYLE (bubble/lollipop) ───────────────
+const catsSorted = Object.entries(AVG_SCORES).sort((a,b) => b[1]-a[1]);
+new Chart(document.getElementById('violinChart'), {
+  type:'bar',
+  data:{
+    labels: catsSorted.map(([k]) => CAT_SHORT[CATS.indexOf(k)] || k),
+    datasets:[{
+      label:'Avg Polarity Score',
+      data: catsSorted.map(([,v]) => v),
+      backgroundColor: catsSorted.map(([,v]) => v > 1.0 ? GREEN+'CC' : v > 0.3 ? YELLOW+'CC' : RED+'CC'),
+      borderColor: catsSorted.map(([,v]) => v > 1.0 ? GREEN : v > 0.3 ? YELLOW : RED),
+      borderWidth: 2, borderRadius: 4
+    }]
+  },
+  options:{
+    ...chartOpts,
+    indexAxis:'y',
+    scales:{
+      x:{ grid:{color:'#1C1C1C'}, ticks:{color:GRAY} },
+      y:{ grid:{color:'#1C1C1C'}, ticks:{color:WHITE, font:{size:9}} }
+    },
+    plugins:{
+      legend:{display:false},
+      tooltip:{ callbacks:{ label: ctx => ` Avg Score: ${ctx.parsed.x.toFixed(3)}` } }
+    }
+  }
+});
+
+// ── RADAR ─────────────────────────────────────────
+new Chart(document.getElementById('radarChart'), {
+  type:'radar',
+  data:{
+    labels: CAT_SHORT,
+    datasets:[
+      { label:'Positive', data:CAT_DATA.Positive.map(v=>v/100),
+        backgroundColor:GREEN+'22', borderColor:GREEN, pointBackgroundColor:GREEN, borderWidth:2 },
+      { label:'Negative', data:CAT_DATA.Negative.map(v=>v/10),
+        backgroundColor:RED+'22', borderColor:RED, pointBackgroundColor:RED, borderWidth:2 }
+    ]
+  },
+  options:{
+    ...chartOpts,
+    scales:{
+      r:{
+        grid:{color:'#222'}, angleLines:{color:'#222'},
+        ticks:{color:GRAY,backdropColor:'transparent',font:{size:8}},
+        pointLabels:{color:WHITE,font:{size:9}}
+      }
+    },
+    plugins:{
+      legend:{ labels:{ color:WHITE, font:{size:10} } }
+    }
+  }
+});
+
+// ── TOP POSITIVE PRODUCTS ─────────────────────────
+new Chart(document.getElementById('posBar'), {
+  type:'bar', data:{
+    labels: TOP_POS.map(([n])=>n),
+    datasets:[{ label:'Avg Score', data:TOP_POS.map(([,v])=>v),
+      backgroundColor: TOP_POS.map(([,v]) => `rgba(0,${Math.round(100+v*20)},${Math.round(80+v*10)},0.8)`),
+      borderColor:GREEN, borderWidth:1, borderRadius:4 }]
+  },
+  options:{
+    ...chartOpts, indexAxis:'y',
+    scales:{
+      x:{grid:{color:'#1C1C1C'},ticks:{color:GRAY},max:8},
+      y:{grid:{color:'#1C1C1C'},ticks:{color:WHITE,font:{size:9}}}
+    },
+    plugins:{legend:{display:false}}
+  }
+});
+
+// ── TOP NEGATIVE PRODUCTS ─────────────────────────
+new Chart(document.getElementById('negBar'), {
+  type:'bar', data:{
+    labels: TOP_NEG.map(([n])=>n),
+    datasets:[{ label:'Avg Score', data:TOP_NEG.map(([,v])=>v),
+      backgroundColor:'rgba(180,0,0,0.75)',
+      borderColor:RED, borderWidth:1, borderRadius:4 }]
+  },
+  options:{
+    ...chartOpts, indexAxis:'y',
+    scales:{
+      x:{grid:{color:'#1C1C1C'},ticks:{color:GRAY}},
+      y:{grid:{color:'#1C1C1C'},ticks:{color:WHITE,font:{size:9}}}
+    },
+    plugins:{legend:{display:false}}
+  }
+});
+
+// ── STACKED BAR ───────────────────────────────────
+new Chart(document.getElementById('stackedBar'), {
+  type:'bar', data:{
+    labels: CAT_SHORT,
+    datasets:[
+      { label:'Positive', data:CAT_DATA.Positive, backgroundColor:GREEN+'BB', stack:'s' },
+      { label:'Neutral',  data:CAT_DATA.Neutral,  backgroundColor:YELLOW+'BB', stack:'s' },
+      { label:'Negative', data:CAT_DATA.Negative, backgroundColor:RED+'BB', stack:'s' }
+    ]
+  },
+  options:{
+    ...chartOpts,
+    scales:{
+      x:{stacked:true,grid:{color:'#1C1C1C'},ticks:{color:WHITE,font:{size:9}}},
+      y:{stacked:true,grid:{color:'#1C1C1C'},ticks:{color:GRAY}}
+    },
+    plugins:{ legend:{ labels:{ color:WHITE, font:{size:10} } } }
+  }
+});
+
+// ── FILTER ───────────────────────────────────────
+function filterChart(mode, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  let pd, nd, neud;
+  if (mode === 'All') {
+    pd = CAT_DATA.Positive; nd = CAT_DATA.Negative; neud = CAT_DATA.Neutral;
+  } else if (mode === 'Positive') {
+    pd = CAT_DATA.Positive; nd = Array(9).fill(0); neud = Array(9).fill(0);
+  } else if (mode === 'Neutral') {
+    pd = Array(9).fill(0); nd = Array(9).fill(0); neud = CAT_DATA.Neutral;
+  } else {
+    pd = Array(9).fill(0); nd = CAT_DATA.Negative; neud = Array(9).fill(0);
+  }
+  barChart.data.datasets[0].data = pd;
+  barChart.data.datasets[1].data = neud;
+  barChart.data.datasets[2].data = nd;
+  barChart.update();
+}
+
+// ── TOOLTIP ──────────────────────────────────────
+const tip = document.getElementById('tooltip');
+function showTip(e, html) {
+  tip.innerHTML = html;
+  tip.style.opacity = '1';
+  moveTip(e);
+}
+function moveTip(e) {
+  tip.style.left = (e.clientX + 14) + 'px';
+  tip.style.top  = (e.clientY - 10) + 'px';
+}
+function hideTip() { tip.style.opacity = '0'; }
+document.addEventListener('mousemove', moveTip);
+</script>
+</body>
+</html>
